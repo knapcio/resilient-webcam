@@ -1,0 +1,58 @@
+{
+  "name": "resilient-webcam",
+  "version": "0.1.0",
+  "description": "A zero-dependency browser webcam controller that detects failures and recovers unattended streams.",
+  "type": "module",
+  "main": "./src/index.js",
+  "types": "./index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./index.d.ts",
+      "import": "./src/index.js",
+      "default": "./src/index.js"
+    }
+  },
+  "files": [
+    "src",
+    "index.d.ts",
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md",
+    "SECURITY.md"
+  ],
+  "sideEffects": false,
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "test": "node --test",
+    "lint": "node scripts/check.mjs",
+    "demo": "node demo/server.mjs",
+    "pack:check": "npm pack --dry-run",
+    "check": "npm run lint && npm test && npm run pack:check",
+    "prepublishOnly": "npm run check"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/knapcio/resilient-webcam.git"
+  },
+  "bugs": {
+    "url": "https://github.com/knapcio/resilient-webcam/issues"
+  },
+  "homepage": "https://github.com/knapcio/resilient-webcam#readme",
+  "keywords": [
+    "webcam",
+    "camera",
+    "getusermedia",
+    "mediastream",
+    "electron",
+    "kiosk",
+    "recovery",
+    "browser"
+  ],
+  "author": "Zbigniew Majewski",
+  "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  }
+}

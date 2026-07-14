@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<meta name="color-scheme" content="dark">
+	<title>Resilient Webcam — live demo</title>
+	<link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+	<main class="shell">
+		<header class="masthead">
+			<div>
+				<a class="eyebrow" href="https://github.com/knapcio/resilient-webcam">resilient-webcam</a>
+				<h1>A camera stream that<br>knows how to come back.</h1>
+				<p class="lede">Pure browser JavaScript. No native add-ons, helper executables, uploads, or telemetry.</p>
+			</div>
+			<div class="status-card" aria-live="polite">
+				<span class="status-dot" id="status-dot"></span>
+				<div>
+					<span class="label">Camera state</span>
+					<strong id="status">idle</strong>
+				</div>
+			</div>
+		</header>
+
+		<section class="workspace">
+			<div class="preview-card">
+				<div class="preview">
+					<video id="camera" aria-label="Live camera preview"></video>
+					<div class="empty-state" id="empty-state">
+						<span class="camera-glyph" aria-hidden="true"></span>
+						<p>Start the camera to see a local preview.</p>
+					</div>
+					<div class="live-badge" id="live-badge">Live</div>
+				</div>
+				<div class="controls">
+					<button class="primary" id="start">Start camera</button>
+					<button id="restart" disabled>Restart</button>
+					<button id="stop" disabled>Stop</button>
+					<button id="capture" disabled>Capture frame</button>
+				</div>
+				<div class="capture-options">
+					<label><input type="checkbox" id="detect-black"> Check for a near-black frame</label>
+					<label><input type="checkbox" id="retry-black"> Restart and recapture once</label>
+				</div>
+			</div>
+
+			<aside>
+				<section class="panel">
+					<div class="panel-heading">
+						<div>
+							<span class="label">Observability</span>
+							<h2>Lifecycle events</h2>
+						</div>
+						<button class="quiet" id="clear-log">Clear</button>
+					</div>
+					<ol class="event-log" id="event-log" aria-live="polite"></ol>
+				</section>
+				<section class="panel captured-panel" id="captured-panel" hidden>
+					<span class="label">Latest capture (local only)</span>
+					<img id="captured-image" alt="Most recently captured camera frame">
+					<p id="capture-meta"></p>
+				</section>
+			</aside>
+		</section>
+
+		<footer>
+			<p>Camera permission is requested only after you press Start. Frames stay in this page unless your application explicitly sends them elsewhere.</p>
+			<a href="../README.md">Read the API guide →</a>
+		</footer>
+	</main>
+	<script type="module" src="./demo.js"></script>
+</body>
+</html>
