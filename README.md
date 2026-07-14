@@ -8,11 +8,6 @@ ordinary webcam components ignore, and performs bounded, observable recovery.
 It is framework-neutral ESM: no native add-on, helper executable, service,
 upload, storage, or telemetry.
 
-> **Release status:** the repository is prepared for v0.1.0. If the first npm
-> release has not happened yet, `npm install resilient-webcam` will return a
-> not-found error; use the GitHub repository or `npm pack` locally until the
-> maintainer publishes it.
-
 ## Why this exists
 
 Most webcam wrappers make the happy path convenient: request a stream, put it
