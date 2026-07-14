@@ -58,3 +58,9 @@ test('ErrorCodes declarations retain each runtime literal type', async () => {
 	assert.match(declaration, /PERMISSION_DENIED: 'PERMISSION_DENIED';/);
 	assert.doesNotMatch(declaration, /ErrorCodes: Readonly<Record</);
 });
+
+test('package metadata exposes the conventional ESM module entry', async () => {
+	const packageJson = JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8'));
+	assert.equal(packageJson.module, './src/index.js');
+	assert.equal(packageJson.module, packageJson.exports['.'].import);
+});

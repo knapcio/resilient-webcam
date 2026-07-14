@@ -5,6 +5,12 @@ This project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.1.2] - 2026-07-14
+
+### Fixed
+
+- Added the conventional top-level `module` entry so bundlers that do not fully honor `exports` can still resolve the ESM source entry.
+
 ## [0.1.1] - 2026-07-14
 
 ### Fixed
@@ -28,6 +34,7 @@ This project uses [Semantic Versioning](https://semver.org/).
 - Async canvas capture with optional near-black detection and one restart/recapture.
 - TypeScript declarations, browser demo, tests, and public project documentation.
 
-[Unreleased]: https://github.com/knapcio/resilient-webcam/compare/v0.1.1...HEAD
+[Unreleased]: https://github.com/knapcio/resilient-webcam/compare/v0.1.2...HEAD
+[0.1.2]: https://github.com/knapcio/resilient-webcam/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/knapcio/resilient-webcam/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/knapcio/resilient-webcam/releases/tag/v0.1.0
