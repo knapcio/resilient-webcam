@@ -5,6 +5,19 @@ This project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-07-14
+
+### Fixed
+
+- Hardened start and restart cancellation across observer callbacks and asynchronous stream adoption so stopped or destroyed controllers cannot reopen the camera or overwrite terminal states.
+- Retired cancelled single-flight operations synchronously and prevented observer cleanup from leaving stale recovery timers or waiters.
+- Kept frame-watchdog updates disabled when no monitor is active and resumed deferred frame-stall retries when no live stream remains.
+- Cleared stale hidden-document recovery after manual starts, preserved literal `ErrorCodes` declaration types, and made syntax checks work from file paths containing spaces or non-ASCII characters.
+
+### Security
+
+- Restricted the network-accessible demo server to explicit demo, source, and README paths instead of exposing the repository root.
+
 ## [0.1.0] - 2026-07-14
 
 ### Added
@@ -15,5 +28,6 @@ This project uses [Semantic Versioning](https://semver.org/).
 - Async canvas capture with optional near-black detection and one restart/recapture.
 - TypeScript declarations, browser demo, tests, and public project documentation.
 
-[Unreleased]: https://github.com/knapcio/resilient-webcam/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/knapcio/resilient-webcam/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/knapcio/resilient-webcam/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/knapcio/resilient-webcam/releases/tag/v0.1.0

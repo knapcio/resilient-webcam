@@ -1,6 +1,6 @@
 {
   "name": "resilient-webcam",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "A zero-dependency browser webcam controller that detects failures and recovers unattended streams.",
   "type": "module",
   "main": "./src/index.js",
