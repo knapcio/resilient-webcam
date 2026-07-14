@@ -42,7 +42,7 @@ test('syntax checking works from a checkout path with spaces and non-ASCII text'
 	);
 	await writeFile(
 		join(temporaryRoot, 'package.json'),
-		JSON.stringify({ dependencies: {} }),
+		JSON.stringify({ type: 'module', dependencies: {} }),
 		'utf8',
 	);
 	await writeFile(join(temporaryRoot, 'src', 'index.js'), 'export const ok = true;\n', 'utf8');
