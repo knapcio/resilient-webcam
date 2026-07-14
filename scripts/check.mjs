@@ -1,6 +1,7 @@
 import { spawnSync } from 'node:child_process';
 import { readdir, readFile } from 'node:fs/promises';
 import { extname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import process from 'node:process';
 
 const root = new URL('../', import.meta.url);
@@ -43,7 +44,7 @@ for (const file of files.sort()) {
 		}
 	}
 
-	const result = spawnSync(process.execPath, ['--check', absolute.pathname], {
+	const result = spawnSync(process.execPath, ['--check', fileURLToPath(absolute)], {
 		encoding: 'utf8',
 	});
 	if (result.status !== 0) {
