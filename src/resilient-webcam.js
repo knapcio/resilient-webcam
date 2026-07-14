@@ -348,6 +348,8 @@ export class ResilientWebcam {
 
 		this._desiredRunning = true;
 		this._lastError = null;
+		this._deferredRecoveryReason = null;
+		this._queuedRecoveryReason = null;
 		this._cancelRecoveryTimer();
 		this._bindGlobalListeners();
 		this._cancelPendingRequest();
@@ -377,6 +379,9 @@ export class ResilientWebcam {
 					this._queuedRecoveryReason ? WebcamStates.RECOVERING : WebcamStates.READY,
 					this._queuedRecoveryReason ? 'start-unhealthy' : 'start-succeeded',
 				);
+				if (!this._isOperationActive(operationId) || stream !== this._stream) {
+					throw operationCancelledError();
+				}
 				return stream;
 			})
 			.catch((error) => {
@@ -391,18 +396,18 @@ export class ResilientWebcam {
 				throw normalized;
 			});
 		work.then((stream) => {
-				if (this._startPromise === promise) {
-					this._startPromise = null;
-				}
+			if (this._startPromise === promise) {
+				this._startPromise = null;
 				this._drainQueuedRecovery();
-				resolveStart(stream);
-			}, (error) => {
-				if (this._startPromise === promise) {
-					this._startPromise = null;
-				}
+			}
+			resolveStart(stream);
+		}, (error) => {
+			if (this._startPromise === promise) {
+				this._startPromise = null;
 				this._drainQueuedRecovery();
-				rejectStart(error);
-			});
+			}
+			rejectStart(error);
+		});
 		return promise;
 	}
 
@@ -441,12 +446,19 @@ export class ResilientWebcam {
 		this._bindGlobalListeners();
 		const promise = Promise.resolve()
 			.then(() => {
-				if (!this._desiredRunning || this._destroyed) {
+				if (
+					this._restartPromise !== promise
+					|| !this._desiredRunning
+					|| this._destroyed
+				) {
 					throw operationCancelledError();
 				}
 				return this._executeRestartRequest(recoveryReason);
 			})
 			.then((stream) => {
+				if (this._restartPromise !== promise || !this._isAdoptedStreamActive(stream)) {
+					throw operationCancelledError();
+				}
 				if (!isLiveStream(stream)) {
 					this._queuedRecoveryReason ??= RecoveryReasons.TRACK_ENDED;
 				}
@@ -457,17 +469,27 @@ export class ResilientWebcam {
 						? `${recoveryReason}-still-unhealthy`
 						: `${recoveryReason}-succeeded`,
 				);
+				if (this._restartPromise !== promise || !this._isAdoptedStreamActive(stream)) {
+					throw operationCancelledError();
+				}
 				this._emit({
 					type: 'recovery',
 					phase: 'succeeded',
 					reason: recoveryReason,
 					attempt: 1,
 				});
+				if (this._restartPromise !== promise || !this._isAdoptedStreamActive(stream)) {
+					throw operationCancelledError();
+				}
 				return stream;
 			})
 			.catch((error) => {
 				const normalized = normalizeMediaError(error);
-				if (this._desiredRunning && !this._destroyed) {
+				if (
+					this._restartPromise === promise
+					&& this._desiredRunning
+					&& !this._destroyed
+				) {
 					this._desiredRunning = false;
 					this._lastError = normalized;
 					this._unbindGlobalListeners();
@@ -486,18 +508,24 @@ export class ResilientWebcam {
 			.finally(() => {
 				if (this._restartPromise === promise) {
 					this._restartPromise = null;
+					this._drainQueuedRecovery();
 				}
-				this._drainQueuedRecovery();
 			});
 		this._restartPromise = promise;
 		this._setState(WebcamStates.RECOVERING, recoveryReason);
-		this._emit({
-			type: 'recovery',
-			phase: 'attempting',
-			reason: recoveryReason,
-			attempt: 1,
-			maxAttempts: 1,
-		});
+		if (
+			this._restartPromise === promise
+			&& this._desiredRunning
+			&& !this._destroyed
+		) {
+			this._emit({
+				type: 'recovery',
+				phase: 'attempting',
+				reason: recoveryReason,
+				attempt: 1,
+				maxAttempts: 1,
+			});
+		}
 		return promise;
 	}
 
@@ -569,6 +597,12 @@ export class ResilientWebcam {
 		return !this._destroyed
 			&& this._desiredRunning
 			&& this._operationId === operationId;
+	}
+
+	_isAdoptedStreamActive(stream) {
+		return !this._destroyed
+			&& this._desiredRunning
+			&& stream === this._stream;
 	}
 
 	_setState(state, reason) {
@@ -666,6 +700,9 @@ export class ResilientWebcam {
 	}
 
 	_requestAndAdopt(operationId, reason) {
+		if (!this._isOperationActive(operationId)) {
+			return Promise.reject(operationCancelledError());
+		}
 		return this._requestStream(operationId).then(async (stream) => {
 			if (!this._isOperationActive(operationId)) {
 				stopStream(stream);
@@ -673,11 +710,14 @@ export class ResilientWebcam {
 			}
 			try {
 				await this._adoptStream(stream, operationId, reason);
+				if (!this._isOperationActive(operationId) || stream !== this._stream) {
+					throw operationCancelledError();
+				}
 				return stream;
 			} catch (error) {
 				if (stream === this._stream) {
 					this._releaseStream(`${reason}-adoption-failed`);
-				} else {
+				} else if (isLiveStream(stream)) {
 					stopStream(stream);
 				}
 				throw error;
@@ -809,6 +849,8 @@ export class ResilientWebcam {
 	}
 
 	_stopInternal(reason) {
+		const startPromise = this._startPromise;
+		const restartPromise = this._restartPromise;
 		this._desiredRunning = false;
 		this._deferredRecoveryReason = null;
 		this._queuedRecoveryReason = null;
@@ -821,6 +863,12 @@ export class ResilientWebcam {
 		this._unbindGlobalListeners();
 		this._releaseStream(reason);
 		this._recoveryAttempt = 0;
+		if (startPromise && this._startPromise === startPromise) {
+			this._startPromise = null;
+		}
+		if (restartPromise && this._restartPromise === restartPromise) {
+			this._restartPromise = null;
+		}
 	}
 
 	_cancelPendingRequest() {
@@ -925,17 +973,19 @@ export class ResilientWebcam {
 		}
 		const deferredReason = this._deferredRecoveryReason;
 		this._deferredRecoveryReason = null;
-		if (deferredReason === RecoveryReasons.FRAME_STALLED) {
+		if (
+			deferredReason === RecoveryReasons.FRAME_STALLED
+			&& this._stream
+			&& isLiveStream(this._stream)
+		) {
 			this._emit({
 				type: 'recovery',
 				phase: 'cancelled',
 				reason: deferredReason,
 				details: { cause: 'visibility-restored-with-fresh-deadline' },
 			});
-			if (this._stream && isLiveStream(this._stream)) {
-				this._setState(WebcamStates.READY, 'visibility-restored');
-				this._startFrameMonitor();
-			}
+			this._setState(WebcamStates.READY, 'visibility-restored');
+			this._startFrameMonitor();
 			return;
 		}
 		if (deferredReason) {
@@ -1012,8 +1062,23 @@ export class ResilientWebcam {
 			: 0.5;
 		const jitterFactor = 1 + (((randomValue * 2) - 1) * this._options.recoveryJitter);
 		const delayMs = Math.max(0, Math.round(exponentialDelay * jitterFactor));
+		const timer = setTimeout(() => {
+			if (this._recoveryTimer !== timer) {
+				return;
+			}
+			this._recoveryTimer = null;
+			this._beginAutomaticRecoveryAttempt(reason, attempt);
+		}, delayMs);
+		this._recoveryTimer = timer;
 		this._lastRecoveryReason = reason;
 		this._setState(WebcamStates.RECOVERING, reason);
+		if (
+			!this._desiredRunning
+			|| this._destroyed
+			|| this._recoveryTimer !== timer
+		) {
+			return;
+		}
 		this._emit({
 			type: 'recovery',
 			phase: 'scheduled',
@@ -1022,10 +1087,6 @@ export class ResilientWebcam {
 			maxAttempts: this._options.maxRecoveryAttempts,
 			delayMs,
 		});
-		this._recoveryTimer = setTimeout(() => {
-			this._recoveryTimer = null;
-			this._beginAutomaticRecoveryAttempt(reason, attempt);
-		}, delayMs);
 	}
 
 	_beginAutomaticRecoveryAttempt(reason, attempt) {
@@ -1057,12 +1118,19 @@ export class ResilientWebcam {
 		let retry = false;
 		const promise = Promise.resolve()
 			.then(() => {
-				if (!this._desiredRunning || this._destroyed) {
+				if (
+					this._restartPromise !== promise
+					|| !this._desiredRunning
+					|| this._destroyed
+				) {
 					throw operationCancelledError();
 				}
 				return this._executeRestartRequest(reason);
 			})
 			.then((stream) => {
+				if (this._restartPromise !== promise || !this._isAdoptedStreamActive(stream)) {
+					throw operationCancelledError();
+				}
 				this._lastError = null;
 				if (!isLiveStream(stream)) {
 					this._queuedRecoveryReason ??= RecoveryReasons.TRACK_ENDED;
@@ -1071,12 +1139,18 @@ export class ResilientWebcam {
 					this._queuedRecoveryReason ? WebcamStates.RECOVERING : WebcamStates.READY,
 					this._queuedRecoveryReason ? `${reason}-still-unhealthy` : `${reason}-recovered`,
 				);
+				if (this._restartPromise !== promise || !this._isAdoptedStreamActive(stream)) {
+					throw operationCancelledError();
+				}
 				this._emit({
 					type: 'recovery',
 					phase: 'succeeded',
 					reason,
 					attempt,
 				});
+				if (this._restartPromise !== promise || !this._isAdoptedStreamActive(stream)) {
+					throw operationCancelledError();
+				}
 				if (!this._queuedRecoveryReason) {
 					this._scheduleRecoveryReset(reason);
 				}
@@ -1084,11 +1158,22 @@ export class ResilientWebcam {
 			})
 			.catch((error) => {
 				const normalized = normalizeMediaError(error);
-				if (!this._desiredRunning || this._destroyed) {
+				if (
+					this._restartPromise !== promise
+					|| !this._desiredRunning
+					|| this._destroyed
+				) {
 					return null;
 				}
 				this._lastError = normalized;
 				this._emitError(normalized);
+				if (
+					this._restartPromise !== promise
+					|| !this._desiredRunning
+					|| this._destroyed
+				) {
+					return null;
+				}
 				this._emit({
 					type: 'recovery',
 					phase: 'failed',
@@ -1096,6 +1181,13 @@ export class ResilientWebcam {
 					attempt,
 					error: normalized,
 				});
+				if (
+					this._restartPromise !== promise
+					|| !this._desiredRunning
+					|| this._destroyed
+				) {
+					return null;
+				}
 				if (!normalized.recoverable || attempt >= this._options.maxRecoveryAttempts) {
 					this._exhaustRecovery(reason, normalized);
 				} else {
@@ -1104,9 +1196,10 @@ export class ResilientWebcam {
 				return null;
 			})
 			.finally(() => {
-				if (this._restartPromise === promise) {
-					this._restartPromise = null;
+				if (this._restartPromise !== promise) {
+					return;
 				}
+				this._restartPromise = null;
 				const queued = this._takeQueuedRecovery();
 				if (this._desiredRunning && !this._destroyed) {
 					if (queued) {
@@ -1150,6 +1243,9 @@ export class ResilientWebcam {
 				{ recoverable: false },
 			));
 		}
+		if ([WebcamStates.STOPPED, WebcamStates.DESTROYED].includes(this._state)) {
+			return Promise.reject(operationCancelledError());
+		}
 		return new Promise((resolve, reject) => {
 			const finish = (callback, value) => {
 				this._subscribers.delete(listener);
@@ -1189,6 +1285,9 @@ export class ResilientWebcam {
 		this._lastError = error;
 		this._unbindGlobalListeners();
 		this._releaseStream(`${reason}-exhausted`);
+		if ([WebcamStates.STOPPED, WebcamStates.DESTROYED].includes(this._state)) {
+			return;
+		}
 		this._setState(WebcamStates.FAILED, `${reason}-exhausted`);
 		this._emit({
 			type: 'recovery',
@@ -1324,7 +1423,12 @@ export class ResilientWebcam {
 	}
 
 	_markFrameFresh(token = this._frameMonitorToken) {
-		if (token !== this._frameMonitorToken || !this._stream || !this._desiredRunning) {
+		const video = this._frameObservedVideo;
+		if (
+			this._options.frameTimeoutMs === 0
+			|| !video
+			|| !this._isFrameMonitorCurrent(video, token)
+		) {
 			return;
 		}
 		this._lastFrameAt = this._now();
